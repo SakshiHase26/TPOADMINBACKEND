@@ -23,6 +23,14 @@ public class PCRegistrationDTO {
     
     private String approvedBy;
     private String tpoName; // From associated TPO
+    public String getPassword() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getPassword'");
+    }
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setUpdatedAt'");
+    }
 }
 
 

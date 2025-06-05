@@ -1,15 +1,18 @@
 package com.example.demo.service;
 
-
-
-import com.example.demo.dto.*;
+import com.example.demo.dto.PCRegistrationDTO;
+import com.example.demo.dto.PCApprovalRequest;
+import com.example.demo.dto.PCRejectionRequest;
 import com.example.demo.entity.PC;
+import com.example.demo.entity.Tpo;
 import com.example.demo.repository.PCRepository;
+import com.example.demo.repository.TpoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,71 +25,73 @@ import java.util.Optional;
 public class PCApprovalService {
     
     private final PCRepository pcRepository;
+    private final TpoRepository tpoRepository;
+    private final PasswordEncoder passwordEncoder;
     
     public Page<PCRegistrationDTO> getAllPCRegistrations(
-            int page, 
-            int size, 
-            String status, 
-            String search, 
-            String sortBy, 
-            String sortDir) {
+            int page, int size, String status, String search, String sortBy, String sortDir) {
         
-        Sort sort = Sort.by(Sort.Direction.fromString(sortDir), sortBy);
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
+            Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        
         Pageable pageable = PageRequest.of(page, size, sort);
         
-        PC.ApprovalStatus statusEnum = null;
-        if (status != null && !status.equals("all")) {
-            statusEnum = PC.ApprovalStatus.valueOf(status.toUpperCase());
+        PC.ApprovalStatus approvalStatus = null;
+        if (!"all".equalsIgnoreCase(status)) {
+            try {
+                approvalStatus = PC.ApprovalStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                approvalStatus = PC.ApprovalStatus.PENDING;
+            }
         }
         
-        Page<PC> registrations;
-        if (statusEnum != null || (search != null && !search.trim().isEmpty())) {
-            registrations = pcRepository.findByStatusAndSearch(statusEnum, search, pageable);
+        Page<PC> pcPage;
+        if (search != null && !search.isEmpty()) {
+            pcPage = pcRepository.findByStatusAndSearch(approvalStatus, search, pageable);
+        } else if (approvalStatus != null) {
+            pcPage = pcRepository.findByApprovalStatus(approvalStatus, pageable);
         } else {
-            registrations = pcRepository.findAll(pageable);
+            pcPage = pcRepository.findAll(pageable);
         }
         
-        return registrations.map(this::convertToDTO);
+        return pcPage.map(this::convertToDTO);
     }
     
     public Optional<PCRegistrationDTO> getPCRegistrationById(Long id) {
-        return pcRepository.findById(id)
-                .map(this::convertToDTO);
+        return pcRepository.findById(id).map(this::convertToDTO);
     }
     
     public PCRegistrationDTO approvePC(Long id, PCApprovalRequest request) {
         PC pc = pcRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("PC registration not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("PC not found"));
         
         if (pc.getApprovalStatus() != PC.ApprovalStatus.PENDING) {
-            throw new RuntimeException("Only pending PC registrations can be approved");
+            throw new RuntimeException("PC registration is not in pending status");
         }
         
         pc.setApprovalStatus(PC.ApprovalStatus.APPROVED);
         pc.setApprovedDate(LocalDateTime.now());
         pc.setApprovedBy(request.getApprovedBy());
         pc.setUpdatedAt(LocalDateTime.now());
-        pc.setRejectionReason(null); // Clear any previous rejection reason
         
-        PC saved = pcRepository.save(pc);
-        return convertToDTO(saved);
+        PC savedPC = pcRepository.save(pc);
+        return convertToDTO(savedPC);
     }
     
     public PCRegistrationDTO rejectPC(Long id, PCRejectionRequest request) {
         PC pc = pcRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("PC registration not found with id: " + id));
+            .orElseThrow(() -> new RuntimeException("PC not found"));
         
         if (pc.getApprovalStatus() != PC.ApprovalStatus.PENDING) {
-            throw new RuntimeException("Only pending PC registrations can be rejected");
+            throw new RuntimeException("PC registration is not in pending status");
         }
         
         pc.setApprovalStatus(PC.ApprovalStatus.REJECTED);
         pc.setRejectionReason(request.getRejectionReason());
-        pc.setApprovedBy(request.getRejectedBy());
         pc.setUpdatedAt(LocalDateTime.now());
         
-        PC saved = pcRepository.save(pc);
-        return convertToDTO(saved);
+        PC savedPC = pcRepository.save(pc);
+        return convertToDTO(savedPC);
     }
     
     public long getPendingCount() {
@@ -101,25 +106,48 @@ public class PCApprovalService {
         return pcRepository.countByApprovalStatus(PC.ApprovalStatus.REJECTED);
     }
     
-    // Get registrations for specific TPO
     public Page<PCRegistrationDTO> getPCRegistrationsByTPO(
-            Long tpoId,
-            int page, 
-            int size, 
-            String status, 
-            String sortBy, 
-            String sortDir) {
+            Long tpoId, int page, int size, String status, String sortBy, String sortDir) {
         
-        Sort sort = Sort.by(Sort.Direction.fromString(sortDir), sortBy);
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? 
+            Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        
         Pageable pageable = PageRequest.of(page, size, sort);
         
-        PC.ApprovalStatus statusEnum = null;
-        if (status != null && !status.equals("all")) {
-            statusEnum = PC.ApprovalStatus.valueOf(status.toUpperCase());
+        PC.ApprovalStatus approvalStatus = PC.ApprovalStatus.valueOf(status.toUpperCase());
+        Page<PC> pcPage = pcRepository.findByTpoIdAndApprovalStatus(tpoId, approvalStatus, pageable);
+        
+        return pcPage.map(this::convertToDTO);
+    }
+    
+    // New method for PC registration
+    public PCRegistrationDTO registerPC(PCRegistrationDTO request) {
+        // Check if email already exists
+        if (pcRepository.existsByCollegeEmail(request.getCollegeEmail())) {
+            throw new RuntimeException("Email already registered");
         }
         
-        Page<PC> registrations = pcRepository.findByTpoIdAndApprovalStatus(tpoId, statusEnum, pageable);
-        return registrations.map(this::convertToDTO);
+        // Check if phone already exists
+        if (pcRepository.existsByPhone(request.getPhone())) {
+            throw new RuntimeException("Phone number already registered");
+        }
+        
+        // Find TPO by ID
+        Tpo tpo = tpoRepository.findById(request.getId())
+            .orElseThrow(() -> new RuntimeException("TPO not found"));
+        
+        // Create new PC entity
+        PC pc = new PC();
+        pc.setName(request.getName());
+        pc.setPhone(request.getPhone());
+        pc.setCollegeEmail(request.getCollegeEmail());
+        pc.setPassword(passwordEncoder.encode(request.getPassword()));
+        pc.setTpo(tpo);
+        pc.setApprovalStatus(PC.ApprovalStatus.PENDING);
+        pc.setRegistrationDate(LocalDateTime.now());
+        
+        PC savedPC = pcRepository.save(pc);
+        return convertToDTO(savedPC);
     }
     
     private PCRegistrationDTO convertToDTO(PC pc) {
@@ -128,17 +156,14 @@ public class PCApprovalService {
         dto.setName(pc.getName());
         dto.setPhone(pc.getPhone());
         dto.setCollegeEmail(pc.getCollegeEmail());
-        dto.setApprovalStatus(pc.getApprovalStatus());
+        dto.setId(pc.getTpo().getId());
+        dto.setTpoName(pc.getTpo().getName()); // Assuming Tpo has getName() method
+        dto.setApprovedBy(pc.getApprovalStatus().name());
         dto.setRejectionReason(pc.getRejectionReason());
         dto.setRegistrationDate(pc.getRegistrationDate());
         dto.setApprovedDate(pc.getApprovedDate());
         dto.setApprovedBy(pc.getApprovedBy());
-        
-        // Set TPO name if available
-        if (pc.getTpo() != null) {
-            dto.setTpoName(pc.getTpo().getName()); // Assuming TPO has getName() method
-        }
-        
+        dto.setUpdatedAt(pc.getUpdatedAt());
         return dto;
     }
 }

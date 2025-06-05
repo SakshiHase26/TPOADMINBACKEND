@@ -28,18 +28,20 @@ public class SecurityConfig {
           .cors().and()
           .csrf().disable()
           .authorizeHttpRequests()
-            .requestMatchers(
-                "/api/auth/tpo/register",
-                "/api/auth/tpo/login",
-                "/api/auth/tpo/**",
-                "/api/auth/admin/adminregister",
-                "/api/auth/admin/adminlogin",
-                "/api/settings/**",
-                
-            "/api/dashboard/**" ,
-            "/api/admin/campus/**" ,
-            "/api/stream/**" 
-            ).permitAll()
+           .requestMatchers(
+    "/api/auth/tpo/register",
+    "/api/auth/tpo/login",
+    "/api/auth/tpo/**",
+    "/api/auth/admin/adminregister",
+    "/api/auth/admin/adminlogin",
+    "/api/settings/**",
+    "/api/tpo/pc-approvals/register",
+    "/api/tpo/pc-approvals/**",
+    "/api/dashboard/**",
+    "/api/admin/campus/**",
+    "/api/stream/**"
+)
+.permitAll()
             .anyRequest().authenticated()
           .and()
           .sessionManagement()

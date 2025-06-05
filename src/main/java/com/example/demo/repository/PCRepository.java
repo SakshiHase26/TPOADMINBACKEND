@@ -28,6 +28,9 @@ public interface PCRepository extends JpaRepository<PC, Long> {
     );
     
     long countByApprovalStatus(PC.ApprovalStatus status);
+    boolean existsByCollegeEmail(String email);
+boolean existsByPhone(String phone);
+
     
     // Find PCs by TPO (if you want to filter by specific TPO)
     Page<PC> findByTpoIdAndApprovalStatus(Long tpoId, PC.ApprovalStatus status, Pageable pageable);

@@ -98,4 +98,11 @@ public class PCApprovalController {
         
         return ResponseEntity.ok(registrations);
     }
+
+    @PostMapping("/register")
+public ResponseEntity<PCRegistrationDTO> registerPC(@RequestBody PCRegistrationDTO request) {
+    PCRegistrationDTO registeredPC = pcApprovalService.registerPC(request);
+    return ResponseEntity.ok(registeredPC);
+}
+
 }
