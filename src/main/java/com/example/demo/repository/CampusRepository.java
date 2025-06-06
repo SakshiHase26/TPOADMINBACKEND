@@ -6,4 +6,6 @@ import com.example.demo.entity.Campus;
 
 public interface CampusRepository extends JpaRepository<Campus, Integer> {
 
-    Campus findByCampusName(String campus);}
+    Campus findByCampusName(String campus);
+   
+}

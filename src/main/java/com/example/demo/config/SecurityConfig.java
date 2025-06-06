@@ -39,7 +39,11 @@ public class SecurityConfig {
     "/api/tpo/pc-approvals/**",
     "/api/dashboard/**",
     "/api/admin/campus/**",
-    "/api/stream/**"
+    "/api/stream/**",
+    "/api/pc/login", 
+    "/api/pc/register",
+    "/api/notices/create",
+    "/api/notices"
 )
 .permitAll()
             .anyRequest().authenticated()
