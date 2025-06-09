@@ -40,10 +40,11 @@ public class SecurityConfig {
     "/api/dashboard/**",
     "/api/admin/campus/**",
     "/api/stream/**",
-    "/api/pc/login", 
+    "/api/pc/login",
+    "/api/pc/test", 
     "/api/pc/register",
     "/api/notices/create",
-    "/api/notices"
+    "/api/notices/**"
 )
 .permitAll()
             .anyRequest().authenticated()
